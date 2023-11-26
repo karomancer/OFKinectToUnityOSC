@@ -10,26 +10,13 @@ void ofApp::setup()
     // Set up canvas
     ofBackground(255);
     
-    // Set up frame buffer
-    ofFboSettings fboSettings;
-    fboSettings.width = width;
-    fboSettings.height = height;
-    canvasFbo.allocate(fboSettings);
+    // Kinect GUI options
+    kinectGuiGroup.setup("Kinect");
+    kinectGuiGroup.add(showDepthMap.set("Show Kinect Depth Map", false));
+    kinectGuiGroup.add(minDepth.set("Min depth", 0.5f, 0.5f, 8.f));
+    kinectGuiGroup.add(maxDepth.set("Max depth", 1.3f, 0.5f, 8.f));
+    kinectGuiGroup.add(anchorDepth.set("Base pixel size", 1, 1, 5));
     
-    // Set up GUI panel
-    guiPanel.setup("DEPTH_DOTS", "settings.json");
-    minDepth.set("Min depth", 0.5f, 0.5f, 8.f);
-    maxDepth.set("Max depth", 1.3f, 0.5f, 8.f);
-    
-    anchorDepth.set("Base pixel size", .75f, 0.f, 5.f);
-        
-    showDepthMap.set("Show Kinect Depth Map", false);
-    
-    guiPanel.add(showDepthMap);
-    guiPanel.add(minDepth);
-    guiPanel.add(maxDepth);
-    guiPanel.add(anchorDepth);
-        
     // Set up Kinect
     ofxKinectV2::Settings kinectSettings;
     kinectSettings.enableRGB = false;
@@ -38,6 +25,16 @@ void ofApp::setup()
     kinectSettings.config.MinDepth = minDepth;
     kinectSettings.config.MaxDepth = maxDepth;
     kinect.open(0, kinectSettings);
+    
+    // Contour finder GUI options
+    contourFinderGuiGroup.setup("Contour Finder");
+    contourFinderGuiGroup.add(minContourArea.set("Min area", 0.01f, 0, 0.5f));
+    contourFinderGuiGroup.add(maxContourArea.set("Max area", 0.05f, 0, 0.5f));
+    
+    // Set up GUI panel
+    guiPanel.setup("People Detection Settings", "settings.json");
+    guiPanel.add(&kinectGuiGroup);
+    guiPanel.add(&contourFinderGuiGroup);
 }
 
 void ofApp::update()
@@ -50,23 +47,45 @@ void ofApp::update()
         depthPixels = kinect.getDepthPixels();
         depthTex.loadData(depthPixels);
         
+        int depthWidth = depthPixels.getWidth();
+        int depthHeight = depthPixels.getHeight();
+        
+        ofFboSettings fboSettings;
+        fboSettings.width = depthWidth;
+        fboSettings.height = depthHeight;
+        visionFbo.allocate(fboSettings);
+        canvasFbo.allocate(fboSettings);
+        
+        drawBounds.set(0, 0, depthWidth, depthHeight);
+        drawBounds.scaleTo(ofGetCurrentViewport(), OF_SCALEMODE_FILL);
+        
+        // Drawing the canvas
         canvasFbo.begin();
         ofSetColor(ofColor(0, 0, 0));
         ofFill();
-        float xMultiplier = (float) ofGetScreenWidth() / depthPixels.getWidth();
-        float yMultiplier = (float) ofGetScreenHeight() / depthPixels.getHeight() + 0.05;
-        
-        for (int y = 0; y < depthPixels.getHeight(); y++) {
-            for (int x = 0; x < depthPixels.getWidth(); x++) {
+        for (int y = 0; y < depthPixels.getHeight(); y+=2) {
+            for (int x = 0; x < depthPixels.getWidth(); x+=2) {
                 float dist = kinect.getDistanceAt(x, y);
                 
                 if (dist > minDepth && dist < maxDepth) {
-                    float radius = ofMap(dist, minDepth, maxDepth, anchorDepth + 1, 1);
-                    ofDrawCircle(x * xMultiplier + anchorDepth, y * yMultiplier + anchorDepth, radius);
+                    float radius = ofMap(dist, minDepth, maxDepth, anchorDepth, 0);
+                    ofDrawCircle(x + anchorDepth, y + anchorDepth, radius);
                 }
             }
         }
         canvasFbo.end();
+        
+        // Drawing the contour
+        contourFinder.setMinAreaNorm(minContourArea);
+        contourFinder.setMaxAreaNorm(maxContourArea);
+        contourFinder.findContours(depthPixels);
+        
+        // Draw the contour in its own FBO
+        visionFbo.begin();
+        ofSetColor(ofColor::red);
+        contourFinder.draw();
+        ofSetColor(255);
+        visionFbo.end();
     }
 }
 
@@ -75,10 +94,9 @@ void ofApp::draw()
     if (showDepthMap) {
         ofSetColor(255);
         ofFill();
+        depthTex.draw(drawBounds);
         
-        depthTex.draw(ofGetScreenWidth()/2 - depthPixels.getWidth()/2, ofGetScreenHeight()/2 - depthPixels.getHeight()/2);
-        
-        // Get the point distance using the SDK function (in meters).
+        //   Get the point distance using the SDK function (in meters).
         float distAtMouse = kinect.getDistanceAt(ofGetMouseX(), ofGetMouseY());
         ofDrawBitmapStringHighlight(ofToString(distAtMouse, 3), ofGetMouseX(), ofGetMouseY() - 10);
         
@@ -87,9 +105,7 @@ void ofApp::draw()
         int depthAtMouse = rawDepthPix.getColor(ofGetMouseX(), ofGetMouseY()).r;
         ofDrawBitmapStringHighlight(ofToString(depthAtMouse), ofGetMouseX() + 16, ofGetMouseY() + 10);
     }
-    else {
-        canvasFbo.draw(0, 0);
-    }
-    
+    canvasFbo.draw(drawBounds);
+    visionFbo.draw(drawBounds);
     guiPanel.draw();
 }

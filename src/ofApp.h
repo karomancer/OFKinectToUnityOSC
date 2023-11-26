@@ -3,6 +3,7 @@
 
 #include "ofMain.h"
 #include "ofxKinectV2.h"
+#include "ofxCv.h"
 #include "ofxGui.h"
 
 class ofApp : public ofBaseApp
@@ -14,15 +15,28 @@ public:
     
     ofxKinectV2 kinect;    
     ofTexture depthTex;
-    ofFbo canvasFbo;
-    
     ofPixels depthPixels;
+
+    ofFbo canvasFbo;
+    ofFbo visionFbo;
+    ofPixels * canvasPixels;
     
+    ofxCv::ContourFinder contourFinder;
+    
+    // GUI Panel
+    ofxPanel guiPanel;
+    
+    // Controls for Kinect
+    ofxGuiGroup kinectGuiGroup;
     ofParameter<float> minDepth;
     ofParameter<float> maxDepth;
-    ofParameter<float> anchorDepth;
-    
+    ofParameter<int> anchorDepth;
     ofParameter<bool> showDepthMap;
     
-    ofxPanel guiPanel;
+    // Controls for Contour Finder
+    ofxGuiGroup contourFinderGuiGroup;
+    ofParameter<float> minContourArea;
+    ofParameter<float> maxContourArea;
+    
+    ofRectangle drawBounds;
 };

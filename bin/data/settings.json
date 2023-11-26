@@ -4,5 +4,17 @@
         "Max_depth": "1.325",
         "Min_depth": "0.5",
         "Show_Kinect_Depth_Map": "0"
+    },
+    "People_Detection_Settings": {
+        "Contour_Finder": {
+            "Max_area": "0.27551",
+            "Min_area": "0.01"
+        },
+        "Kinect": {
+            "Base_pixel_size": "0.75",
+            "Max_depth": "1.3",
+            "Min_depth": "0.5",
+            "Show_Kinect_Depth_Map": "0"
+        }
     }
 }
