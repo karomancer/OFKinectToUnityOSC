@@ -2,6 +2,9 @@
 #include "ofApp.h"
 #include "ofxCv.h"
 
+const int KINECT_DEPTH_WIDTH = 512;
+const int KINECT_DEPTH_HEIGHT = 424;
+
 void ofApp::setup()
 {
     int width = ofGetScreenWidth();
@@ -10,9 +13,10 @@ void ofApp::setup()
     
     // Set up canvas
     ofBackground(255);
+    drawBounds.set(0, 0, KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
+    drawBounds.scaleTo(ofGetCurrentViewport(), OF_SCALEMODE_FILL);
     
     // Set up OSC sender
-    
     oscSender.setup("localhost", 1337);
     
     // Kinect GUI options
@@ -24,8 +28,8 @@ void ofApp::setup()
     
     // Set up Kinect
     ofxKinectV2::Settings kinectSettings;
-    kinectSettings.enableRGB = false;
-    kinectSettings.enableIR = false;
+    kinectSettings.enableRGB = true;
+    kinectSettings.enableIR = true;
     kinectSettings.enableRGBRegistration = false;
     kinectSettings.config.MinDepth = minDepth;
     kinectSettings.config.MaxDepth = maxDepth;
@@ -53,28 +57,20 @@ void ofApp::update()
         depthPixels = kinect.getDepthPixels();
         depthTex.loadData(depthPixels);
         
-        int depthWidth = depthPixels.getWidth();
-        int depthHeight = depthPixels.getHeight();
-        
-        ofFboSettings fboSettings;
-        fboSettings.width = depthWidth;
-        fboSettings.height = depthHeight;
-        visionFbo.allocate(fboSettings);
-        canvasFbo.allocate(fboSettings);
-        
-        drawBounds.set(0, 0, depthWidth, depthHeight);
-        drawBounds.scaleTo(ofGetCurrentViewport(), OF_SCALEMODE_FILL);
+        canvasFbo.allocate(KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
+        visionFbo.allocate(KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
         
         // Drawing the canvas
         canvasFbo.begin();
-        ofSetColor(ofColor(0, 0, 0));
+        ofClear(255);
+        ofSetColor(ofColor::black);
         ofFill();
         for (int y = 0; y < depthPixels.getHeight(); y += 4) {
             for (int x = 0; x < depthPixels.getWidth(); x += 4) {
                 float dist = kinect.getDistanceAt(x, y);
                 
                 if (dist > minDepth && dist < maxDepth) {
-                    float radius = ofMap(dist, minDepth, maxDepth, anchorDepth * 3, 0);
+                    float radius = ofMap(dist, minDepth, maxDepth, anchorDepth * 2, 0);
                     ofDrawCircle(x + anchorDepth, y + anchorDepth, radius);
                 }
             }
@@ -89,11 +85,12 @@ void ofApp::update()
         contourFinder.getTracker().setPersistence(persistence);
         contourFinder.findContours(canvasPixels);
         std::vector<cv::Rect> blobs = contourFinder.getBoundingRects();
-        cout << "num blobs " << blobs.size() << endl;
+//        cout << "num blobs " << blobs.size() << endl;
         
         // Draw the contour in its own FBO
         visionFbo.begin();
-        ofSetColor(255);
+        ofClear(255);
+        ofSetColor(ofColor::white);
         ofNoFill();
         for(int i = 0; i < blobs.size(); i++) {
             ofColor color = ofColor::red;
@@ -109,12 +106,14 @@ void ofApp::update()
 
 void ofApp::draw()
 {
-    canvasFbo.draw(drawBounds);
-    
     if (showDepthMap) {
+        ofSetColor(255);
+        ofFill();
         depthTex.draw(drawBounds);
+    } else {
+//        canvasFbo.draw(drawBounds);
     }
     
-    visionFbo.draw(drawBounds);
+//    visionFbo.draw(drawBounds);
     guiPanel.draw();
 }
