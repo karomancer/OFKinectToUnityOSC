@@ -7,14 +7,27 @@
     },
     "People_Detection_Settings": {
         "Contour_Finder": {
-            "Max_area": "0.05",
+            "Max_area": "50",
             "Min_area": "0.01",
             "Persistence": "15"
         },
         "Kinect": {
-            "Base_pixel_size": "1",
-            "Max_depth": "4.56888",
+            "Base_pixel_size": "2",
+            "Max_depth": "1.87755",
             "Min_depth": "0.5",
+            "Show_Kinect_Depth_Map": "0"
+        }
+    },
+    "SETTINGS": {
+        "Contour_Finder": {
+            "Max_area": "300",
+            "Min_area": "26.1224",
+            "Persistence": "300"
+        },
+        "Kinect": {
+            "Base_pixel_size": "3",
+            "Max_depth": "1.60969",
+            "Min_depth": "0.767857",
             "Show_Kinect_Depth_Map": "0"
         }
     }
