@@ -16,23 +16,23 @@ void ofApp::setup()
     
     drawBounds.set(0, 0, KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
     drawBounds.scaleTo(ofGetCurrentViewport(), OF_SCALEMODE_FILL);
-
+    
     // Set up OSC sender
     oscSender.setup("localhost", 1337);
-
+    
     // Kinect GUI options
     kinectGuiGroup.setup("Kinect");
     kinectGuiGroup.add(showDepthMap.set("Show Kinect Depth Map", false));
     kinectGuiGroup.add(minDepth.set("Min depth", 0.5f, 0.5f, 8.f));
     kinectGuiGroup.add(maxDepth.set("Max depth", 5.f, 0.5f, 8.f));
     kinectGuiGroup.add(anchorDepth.set("Base pixel size", 1, 1, 5));
-
+    
     // Contour finder GUI options
     contourFinderGuiGroup.setup("Contour Finder");
     contourFinderGuiGroup.add(minContourArea.set("Min area", 0.01f, 0, 100.f));
     contourFinderGuiGroup.add(maxContourArea.set("Max area", 0.4f, 0, 300.f));
-    contourFinderGuiGroup.add(persistence.set("Persistence", 15, 0, 300));
-
+    contourFinderGuiGroup.add(persistence.set("Persistence", 15, 0, 1000));
+    
     // Set up GUI panel
     guiPanel.setup("SETTINGS", "settings.json");
     guiPanel.add(&kinectGuiGroup);
@@ -44,8 +44,8 @@ void ofApp::setup()
     kinectSettings.enableRGB = false;
     kinectSettings.enableIR = false;
     kinectSettings.enableRGBRegistration = false;
-//    kinectSettings.config.MinDepth = minDepth;
-//    kinectSettings.config.MaxDepth = maxDepth;
+    //    kinectSettings.config.MinDepth = minDepth;
+    //    kinectSettings.config.MaxDepth = maxDepth;
     kinect.open(0, kinectSettings);
 }
 
@@ -61,13 +61,13 @@ void ofApp::update()
         
         canvasFbo.allocate(KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
         visionFbo.allocate(KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
-
+        
         // Drawing the canvas
         canvasFbo.begin();
         for (int y = 0; y < depthPixels.getHeight(); y+=2) {
             for (int x = 0; x < depthPixels.getWidth(); x+=2) {
                 float dist = kinect.getDistanceAt(x, y);
-
+                
                 if (dist > minDepth && dist < maxDepth) {
                     int grayInt = ofMap(dist, minDepth, maxDepth, 255, 0);
                     float radius = ofMap(dist, minDepth, maxDepth, anchorDepth * 2, 0);
@@ -78,31 +78,73 @@ void ofApp::update()
             }
         }
         canvasFbo.end();
-
+        
         canvasFbo.readToPixels(canvasPixels);
-
+        
         // Drawing the contour
         contourFinder.setMinAreaRadius(minContourArea);
         contourFinder.setMaxAreaRadius(maxContourArea);
-        contourFinder.getTracker().setPersistence(persistence);
+        tracker = contourFinder.getTracker();
+        tracker.setPersistence(persistence);
         contourFinder.findContours(showDepthMap ? depthPixels : canvasPixels);
         std::vector<cv::Rect> blobs = contourFinder.getBoundingRects();
-        cout << "num blobs " << blobs.size() << endl;
         
+        std::vector<int> presentIds = {};
+        std::vector<int> idsToDelete = {};
         // Draw the contour in its own FBO
         visionFbo.begin();
         ofClear(255);
         ofSetColor(ofColor::white);
         ofNoFill();
         for(int i = 0; i < blobs.size(); i++) {
+            int label = contourFinder.getLabel(i);
             ofColor color = ofColor::red;
-            color.setHueAngle(color.getHueAngle() + i * 30);
+            color.setHueAngle(color.getHueAngle() + label * 5);
             ofSetColor(color);
             cv::Rect boundingRect = blobs[i];
             ofDrawRectangle(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height);
-//            cout << "What the hell " << boundingRect.x << " " << boundingRect.y << endl;
+            idTrackingMap[label] = true;
+            
+            if (idTrackingMap[label]) {
+                // Don't mind me...just sending messages in a drawing function shhhh
+                ofxOscMessage msg;
+                msg.setAddress("/object/move");
+                msg.addIntArg(label);
+                msg.addIntArg(boundingRect.x);
+                msg.addIntArg(boundingRect.y);
+                msg.addIntArg(color.getHex());
+                oscSender.sendMessage(msg);
+                
+                cout << "Sending /object/move " << label << " " << boundingRect.x << " " << boundingRect.y << " " << color.getHex() << endl;
+                
+                presentIds.push_back(label);
+            }
+            
         }
         visionFbo.end();
+        
+        for (auto it = idTrackingMap.begin(); it != idTrackingMap.end(); ++it) {
+            int label = it->first;
+            
+            auto findIt = std::find(std::begin(presentIds), std::end(presentIds), label);
+            
+            if (findIt == std::end(presentIds)) {
+                cout << "Sending /object/delete " << label << endl;
+                idTrackingMap[label] = false;
+                ofxOscMessage msg;
+                msg.setAddress("/object/delete");
+                msg.addIntArg(label);
+                oscSender.sendMessage(msg);
+                
+                idsToDelete.push_back(label);
+            }
+            
+        }
+        
+        for (int i = 0; i < idsToDelete.size(); i++) {
+            idTrackingMap.erase(idsToDelete[i]);
+        }
+        
     }
 }
 

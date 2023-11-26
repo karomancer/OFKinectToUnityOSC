@@ -25,6 +25,8 @@ public:
     ofPixels canvasPixels;
     
     ofxCv::ContourFinder contourFinder;
+    ofxCv::RectTracker tracker;
+    std::map<int, bool> idTrackingMap;
     
     // GUI Panel
     ofxPanel guiPanel;

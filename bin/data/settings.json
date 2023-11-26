@@ -20,13 +20,13 @@
     },
     "SETTINGS": {
         "Contour_Finder": {
-            "Max_area": "300",
+            "Max_area": "139.286",
             "Min_area": "26.1224",
             "Persistence": "300"
         },
         "Kinect": {
             "Base_pixel_size": "3",
-            "Max_depth": "1.60969",
+            "Max_depth": "1.53316",
             "Min_depth": "0.767857",
             "Show_Kinect_Depth_Map": "0"
         }
