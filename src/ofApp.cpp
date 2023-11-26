@@ -7,13 +7,12 @@ const int KINECT_DEPTH_HEIGHT = 424;
 
 void ofApp::setup()
 {
-    int width = ofGetScreenWidth();
-    int height = ofGetScreenHeight();
-    ofSetWindowShape(width, height);
+    ofSetWindowShape(ofGetScreenWidth(), ofGetScreenHeight());
     
     // Set up canvas
     ofBackground(255);
     
+    // Set up drawing bounds for mapping 512x424 to full screen later
     drawBounds.set(0, 0, KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
     drawBounds.scaleTo(ofGetCurrentViewport(), OF_SCALEMODE_FILL);
     
@@ -44,8 +43,6 @@ void ofApp::setup()
     kinectSettings.enableRGB = false;
     kinectSettings.enableIR = false;
     kinectSettings.enableRGBRegistration = false;
-    //    kinectSettings.config.MinDepth = minDepth;
-    //    kinectSettings.config.MaxDepth = maxDepth;
     kinect.open(0, kinectSettings);
 }
 
@@ -59,10 +56,14 @@ void ofApp::update()
         depthPixels = kinect.getDepthPixels();
         depthTex.loadData(depthPixels);
         
+        // Allocate space for frame buffers
+        // We're going to draw in the frame buffers off screen first
+        // then draw to the screen
         canvasFbo.allocate(KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
         visionFbo.allocate(KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
         
-        // Drawing the canvas
+        // Drawing the Kinect depth data into a gray scale figure on white
+        // using all the parameters set in the GUI
         canvasFbo.begin();
         for (int y = 0; y < depthPixels.getHeight(); y+=2) {
             for (int x = 0; x < depthPixels.getWidth(); x+=2) {
@@ -79,9 +80,17 @@ void ofApp::update()
         }
         canvasFbo.end();
         
+        // We're going to be using these to determine
+        // which objects we're still tracking
+        // (and idsToDelete is to send a delete message to the other side)
+        std::vector<int> presentIds = {};
+        std::vector<int> idsToDelete = {};
+        
+        // Reading the frame buffer object (FBO) to pixels for
+        // the contour finder to compare against
         canvasFbo.readToPixels(canvasPixels);
         
-        // Drawing the contour
+        // Using OpenCV's contour finder to find the different bounding boxes
         contourFinder.setMinAreaRadius(minContourArea);
         contourFinder.setMaxAreaRadius(maxContourArea);
         tracker = contourFinder.getTracker();
@@ -89,9 +98,8 @@ void ofApp::update()
         contourFinder.findContours(showDepthMap ? depthPixels : canvasPixels);
         std::vector<cv::Rect> blobs = contourFinder.getBoundingRects();
         
-        std::vector<int> presentIds = {};
-        std::vector<int> idsToDelete = {};
-        // Draw the contour in its own FBO
+        
+        // Draw the contour in its own FBO to render later
         visionFbo.begin();
         ofClear(255);
         ofSetColor(ofColor::white);
@@ -123,6 +131,10 @@ void ofApp::update()
         }
         visionFbo.end();
         
+        // Map is from tracking object ID -> true (dumb, I know)
+        // Go through that and see if anything needs to be deleted
+        // Could this be more efficient? Yes!
+        // It's 3AM and I don't want to think about it anymore lol
         for (auto it = idTrackingMap.begin(); it != idTrackingMap.end(); ++it) {
             int label = it->first;
             
@@ -150,6 +162,8 @@ void ofApp::update()
 
 void ofApp::draw()
 {
+    // If the showDepthMap checkbox is checked, show that instead of
+    // the drawn version I made
     if (showDepthMap) {
         ofSetColor(255);
         ofFill();
