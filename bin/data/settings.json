@@ -7,12 +7,13 @@
     },
     "People_Detection_Settings": {
         "Contour_Finder": {
-            "Max_area": "0.27551",
-            "Min_area": "0.01"
+            "Max_area": "0.05",
+            "Min_area": "0.01",
+            "Persistence": "15"
         },
         "Kinect": {
-            "Base_pixel_size": "0.75",
-            "Max_depth": "1.3",
+            "Base_pixel_size": "1",
+            "Max_depth": "4.56888",
             "Min_depth": "0.5",
             "Show_Kinect_Depth_Map": "0"
         }

@@ -4,6 +4,7 @@
 #include "ofMain.h"
 #include "ofxKinectV2.h"
 #include "ofxCv.h"
+#include "ofxOsc.h"
 #include "ofxGui.h"
 
 class ofApp : public ofBaseApp
@@ -13,13 +14,15 @@ public:
     void update();
     void draw();
     
+    ofxOscSender oscSender;
+    
     ofxKinectV2 kinect;    
     ofTexture depthTex;
     ofPixels depthPixels;
 
     ofFbo canvasFbo;
     ofFbo visionFbo;
-    ofPixels * canvasPixels;
+    ofPixels canvasPixels;
     
     ofxCv::ContourFinder contourFinder;
     
@@ -37,6 +40,7 @@ public:
     ofxGuiGroup contourFinderGuiGroup;
     ofParameter<float> minContourArea;
     ofParameter<float> maxContourArea;
+    ofParameter<int> persistence;
     
     ofRectangle drawBounds;
 };
