@@ -13,8 +13,8 @@ void ofApp::setup()
     // Kinect GUI options
     kinectGuiGroup.setup("Kinect");
     kinectGuiGroup.add(showDepthMap.set("Show Kinect Depth Map", false));
-    kinectGuiGroup.add(minDepth.set("Min depth", 0.5f, 0.5f, 8.f));
-    kinectGuiGroup.add(maxDepth.set("Max depth", 1.3f, 0.5f, 8.f));
+    kinectGuiGroup.add(minDepth.set("Min depth", 0.5f, 0.5f, 10.f));
+    kinectGuiGroup.add(maxDepth.set("Max depth", 1.3f, 0.5f, 10.f));
     kinectGuiGroup.add(anchorDepth.set("Base pixel size", 1, 1, 5));
     
     // Set up Kinect
@@ -63,12 +63,12 @@ void ofApp::update()
         canvasFbo.begin();
         ofSetColor(ofColor(0, 0, 0));
         ofFill();
-        for (int y = 0; y < depthPixels.getHeight(); y+=2) {
-            for (int x = 0; x < depthPixels.getWidth(); x+=2) {
+        for (int y = 0; y < depthPixels.getHeight(); y += anchorDepth) {
+            for (int x = 0; x < depthPixels.getWidth(); x += anchorDepth) {
                 float dist = kinect.getDistanceAt(x, y);
                 
                 if (dist > minDepth && dist < maxDepth) {
-                    float radius = ofMap(dist, minDepth, maxDepth, anchorDepth, 0);
+                    float radius = ofMap(dist, minDepth, maxDepth, anchorDepth, 0.5f);
                     ofDrawCircle(x + anchorDepth, y + anchorDepth, radius);
                 }
             }
