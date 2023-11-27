@@ -7,6 +7,12 @@
 #include "ofxOsc.h"
 #include "ofxGui.h"
 
+struct Player {
+    int label;
+    int x;
+    int y;
+};
+
 class ofApp : public ofBaseApp
 {
 public:
@@ -18,6 +24,8 @@ public:
     void pruneTrackingObjects();
     void sendObjectMoveMsg(int label, cv::Rect boundingRect, ofColor color);
     void sendObjectDeleteMsg(int label);
+    
+    Player player;
     
     ofxOscSender oscSender;
     
@@ -31,10 +39,13 @@ public:
     
     ofxCv::ContourFinder contourFinder;
     ofxCv::RectTracker tracker;
-    std::map<int, bool> idTrackingMap;
+    std::map<int, cv::Rect> idTrackingMap;
     
     // GUI Panel
     ofxPanel guiPanel;
+    
+    ofParameter<bool> sendObjectMsgs;
+    ofParameter<bool> sendPlayerMsgs;
     
     // Controls for Kinect
     ofxGuiGroup kinectGuiGroup;
