@@ -20,15 +20,20 @@
     },
     "SETTINGS": {
         "Contour_Finder": {
-            "Max_area": "139.286",
-            "Min_area": "26.1224",
-            "Persistence": "300"
+            "Max_area": "123.98",
+            "Min_area": "29.0816",
+            "Persistence": "770"
         },
         "Kinect": {
-            "Base_pixel_size": "3",
-            "Max_depth": "1.53316",
-            "Min_depth": "0.767857",
+            "Base_pixel_size": "5",
+            "Max_depth": "1.80102",
+            "Min_depth": "1.57143",
             "Show_Kinect_Depth_Map": "0"
+        },
+        "Player_Movement": {
+            "Jump_threshold": "10",
+            "Move_threshold": "10",
+            "Slide_threshold": "10"
         }
     }
 }
