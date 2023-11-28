@@ -20,20 +20,23 @@
     },
     "SETTINGS": {
         "Contour_Finder": {
-            "Max_area": "123.98",
-            "Min_area": "29.0816",
-            "Persistence": "770"
+            "Max_area": "151.531",
+            "Min_area": "65.8163",
+            "Persistence": "750"
         },
+        "Debounce_interval__ms_": "24",
         "Kinect": {
-            "Base_pixel_size": "5",
-            "Max_depth": "1.80102",
-            "Min_depth": "1.57143",
+            "Base_pixel_size": "3",
+            "Max_depth": "2.87245",
+            "Min_depth": "0.806122",
             "Show_Kinect_Depth_Map": "0"
         },
         "Player_Movement": {
-            "Jump_threshold": "10",
-            "Move_threshold": "10",
-            "Slide_threshold": "10"
-        }
+            "Jump_threshold": "100",
+            "Move_threshold": "3",
+            "Slide_threshold": "45"
+        },
+        "Send__object__msgs": "0",
+        "Send__player__msgs": "1"
     }
 }

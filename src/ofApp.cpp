@@ -4,11 +4,13 @@
 
 const int KINECT_DEPTH_WIDTH = 512;
 const int KINECT_DEPTH_HEIGHT = 424;
+const int NUM_LANES = 3; // Consider putting this as a threshold
+const int LANE_WIDTH = KINECT_DEPTH_WIDTH/NUM_LANES;
 
 void ofApp::setup()
 {
     ofSetWindowShape(ofGetScreenWidth(), ofGetScreenHeight());
-        
+    
     // Set up canvas
     ofBackground(255);
     
@@ -19,6 +21,11 @@ void ofApp::setup()
     // Set up OSC sender
     oscSender.setup("localhost", 1337);
     
+    guiPanel.setup("SETTINGS", "settings.json");
+    guiPanel.add(sendObjectMsgs.set("Send /object/ msgs", true));
+    guiPanel.add(sendPlayerMsgs.set("Send /player/ msgs", true));
+    guiPanel.add(msgDebounceInterval.set("Debounce interval (ms)", 20.f, 0.f, 400.f));
+    
     // Kinect GUI options
     kinectGuiGroup.setup("Kinect");
     kinectGuiGroup.add(showDepthMap.set("Show Kinect Depth Map", false));
@@ -28,17 +35,16 @@ void ofApp::setup()
     
     // Contour finder GUI options
     contourFinderGuiGroup.setup("Contour Finder");
-    contourFinderGuiGroup.add(minContourArea.set("Min area", 0.01f, 0, 100.f));
+    contourFinderGuiGroup.add(minContourArea.set("Min area", 0.01f, 0, 300.f));
     contourFinderGuiGroup.add(maxContourArea.set("Max area", 0.4f, 0, 300.f));
     contourFinderGuiGroup.add(persistence.set("Persistence", 15, 0, 1000));
     
+    player = {0, NUM_LANES/2, -1, -1};
     playerMovementGuiGroup.setup("Player Movement");
-    playerMovementGuiGroup.add(moveThreshold.set("Move threshold", 10, 0, 100));
-    playerMovementGuiGroup.add(jumpThreshold.set("Jump threshold", 10, 0, 300));
-    playerMovementGuiGroup.add(slideThreshold.set("Slide threshold", 10, 0, 300));
+    playerMovementGuiGroup.add(jumpThreshold.set("Jump threshold", -100, 0, 100));
+    playerMovementGuiGroup.add(slideThreshold.set("Slide threshold", -100, 0, 100));
     
-    // Set up GUI panel
-    guiPanel.setup("SETTINGS", "settings.json");
+    // Set up GUI panel groups
     guiPanel.add(&kinectGuiGroup);
     guiPanel.add(&contourFinderGuiGroup);
     guiPanel.add(&playerMovementGuiGroup);
@@ -75,23 +81,21 @@ void ofApp::updateCanvas() {
         }
     }
     canvasFbo.end();
+    
+    // Reading the frame buffer object (FBO) to pixels for
+    // the contour finder to compare against
+    canvasFbo.readToPixels(canvasPixels);
 }
 
 void ofApp::updateOutlines() {
     visionFbo.allocate(KINECT_DEPTH_WIDTH, KINECT_DEPTH_HEIGHT);
     
-    // Reading the frame buffer object (FBO) to pixels for
-    // the contour finder to compare against
-    canvasFbo.readToPixels(canvasPixels);
-    
     // Using OpenCV's contour finder to find the different bounding boxes
     contourFinder.setMinAreaRadius(minContourArea);
     contourFinder.setMaxAreaRadius(maxContourArea);
-    tracker = contourFinder.getTracker();
-    tracker.setPersistence(persistence);
+    contourFinder.getTracker().setPersistence(persistence);
     contourFinder.findContours(showDepthMap ? depthPixels : canvasPixels);
     std::vector<cv::Rect> blobs = contourFinder.getBoundingRects();
-    
     
     // Draw the contour in its own FBO to render later
     visionFbo.begin();
@@ -105,10 +109,14 @@ void ofApp::updateOutlines() {
         
         color.setHueAngle(color.getHueAngle() + label * 5);
         ofSetColor(color);
-                    
+        
         ofDrawRectangle(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height);
         
-        sendObjectMoveMsg(label, boundingRect, color);
+        idTrackingMap[label] = boundingRect;
+        if (sendObjectMsgs && isInDebounceInterval(lastTime)) {
+            sendObjectMoveMsg(label, boundingRect, color);
+        }
+        presentIds.push_back(label);
     }
     visionFbo.end();
 }
@@ -128,9 +136,73 @@ void ofApp::update()
         
         updateCanvas();
         updateOutlines();
+        
+        // 0th is player
+        if (sendPlayerMsgs && contourFinder.getBoundingRects().size() > 0 && isInDebounceInterval(lastTime)) {
+            cv::Rect blobRect;
+            
+            auto it = std::find(presentIds.begin(), presentIds.end(), player.label);
+            if (it != presentIds.end()) {
+                ofxOscMessage msg;
+                cv::Rect blobRect = idTrackingMap[player.label];
                 
-        pruneTrackingObjects();        
+                int x = blobRect.x + blobRect.width / 2;
+                int y = blobRect.y + blobRect.height / 2;
+                
+
+                int lane = findLaneNum(x);
+                
+                if (player.lane > lane) {
+                    msg.setAddress("/player/move");
+                    msg.addIntArg(-1);
+                    cout << "Sending /player/move -1" << endl;
+                } else if (player.lane < lane) {
+                    msg.setAddress("/player/move");
+                    msg.addIntArg(1);
+                    cout << "Sending /player/move 1" << endl;
+                }
+                
+                if (y < KINECT_DEPTH_HEIGHT / 3 + jumpThreshold && isInDebounceInterval(player.isJumpingMilliseconds)) {
+                    player.isJumpingMilliseconds = ofGetElapsedTimeMillis() * 2;
+                    msg.setAddress("/player/jump");
+                    cout << "Sending /player/jump" << endl;
+                } else {
+                    
+                }
+                
+                if (y > 2 * KINECT_DEPTH_HEIGHT / 3 + slideThreshold && isInDebounceInterval(player.isSlidingMilliseconds)) {
+                    player.isSlidingMilliseconds = ofGetElapsedTimeMillis() * 2;
+                    msg.setAddress("/player/slide");
+                    cout << "Sending /player/slide" << endl;
+                } else {
+                    
+//                    cout << "--" << endl;
+                }
+                
+                player.lane = lane;
+                
+                oscSender.sendMessage(msg);
+            } else {
+                blobRect = contourFinder.getBoundingRect(0);
+                int x = blobRect.x + blobRect.width / 2;
+                int y = blobRect.y + blobRect.height / 2;
+                
+                player.label = contourFinder.getLabel(0);
+                player.lane = findLaneNum(x);
+                player.isJumpingMilliseconds = -1;
+                player.isSlidingMilliseconds = -1;
+                
+                cout << "Setting player to " << player.label << endl;
+            }
+        }
+        
+        
+        if (sendObjectMsgs && isInDebounceInterval(lastTime)) {
+            pruneTrackingObjects();
+        }
     }
+    
+    lastTime = ofGetElapsedTimeMillis();
 }
 
 void ofApp::draw()
@@ -161,6 +233,8 @@ void ofApp::pruneTrackingObjects() {
         if (findIt == std::end(presentIds)) {
             sendObjectDeleteMsg(label);
         }
+        
+        idsToDelete.push_back(label);
     }
     
     for (int i = 0; i < idsToDelete.size(); i++) {
@@ -168,13 +242,24 @@ void ofApp::pruneTrackingObjects() {
     }
 }
 
+bool ofApp::isInDebounceInterval(int time) {
+    return ofGetElapsedTimeMillis() - time > msgDebounceInterval;
+}
+
+int ofApp::findLaneNum(int x) {
+    for (int i = 0; i < NUM_LANES; i++) {
+        if (x > LANE_WIDTH * i && x < LANE_WIDTH * (i + 1)) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 /**
  * Custom methods for sending messages
  */
 void ofApp::sendObjectMoveMsg(int label, cv::Rect boundingRect, ofColor color) {
-    idTrackingMap[label] = true;
-    
-    if (idTrackingMap[label]) {
+    if (idTrackingMap.find(label) == idTrackingMap.end()) {
         // Don't mind me...just sending messages in a drawing function shhhh
         ofxOscMessage msg;
         msg.setAddress("/object/move");
@@ -185,19 +270,14 @@ void ofApp::sendObjectMoveMsg(int label, cv::Rect boundingRect, ofColor color) {
         oscSender.sendMessage(msg);
         
         cout << "Sending /object/move " << label << " " << boundingRect.x << " " << boundingRect.y << " " << color.getHex() << endl;
-        
-        presentIds.push_back(label);
     }
 }
 
-void ofApp::sendObjectDeleteMsg(int label) {    
-    idTrackingMap[label] = false;
+void ofApp::sendObjectDeleteMsg(int label) {
     ofxOscMessage msg;
     msg.setAddress("/object/delete");
     msg.addIntArg(label);
     oscSender.sendMessage(msg);
     
     cout << "Sending /object/delete " << label << endl;
-    
-    idsToDelete.push_back(label);
 }
