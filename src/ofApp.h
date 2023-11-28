@@ -9,8 +9,9 @@
 
 struct Player {
     int label;
-    int x;
-    int y;
+    int lane;
+    int isJumpingMilliseconds; // in milliseconds
+    int isSlidingMilliseconds; // in milliseconds
 };
 
 class ofApp : public ofBaseApp
@@ -24,8 +25,12 @@ public:
     void pruneTrackingObjects();
     void sendObjectMoveMsg(int label, cv::Rect boundingRect, ofColor color);
     void sendObjectDeleteMsg(int label);
+    bool isInDebounceInterval(int time);
+    int findLaneNum(int x);
     
     Player player;
+    
+    int lastTime;
     
     ofxOscSender oscSender;
     
@@ -46,6 +51,7 @@ public:
     
     ofParameter<bool> sendObjectMsgs;
     ofParameter<bool> sendPlayerMsgs;
+    ofParameter<float> msgDebounceInterval;
     
     // Controls for Kinect
     ofxGuiGroup kinectGuiGroup;
@@ -64,7 +70,6 @@ public:
     ofxGuiGroup playerMovementGuiGroup;
     ofParameter<int> jumpThreshold;
     ofParameter<int> slideThreshold;
-    ofParameter<int> moveThreshold;
     
     ofRectangle drawBounds;
     

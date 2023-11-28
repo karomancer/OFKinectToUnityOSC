@@ -4,6 +4,8 @@
 
 const int KINECT_DEPTH_WIDTH = 512;
 const int KINECT_DEPTH_HEIGHT = 424;
+const int NUM_LANES = 3; // Consider putting this as a threshold
+const int LANE_WIDTH = KINECT_DEPTH_WIDTH/NUM_LANES;
 
 void ofApp::setup()
 {
@@ -22,6 +24,7 @@ void ofApp::setup()
     guiPanel.setup("SETTINGS", "settings.json");
     guiPanel.add(sendObjectMsgs.set("Send /object/ msgs", true));
     guiPanel.add(sendPlayerMsgs.set("Send /player/ msgs", true));
+    guiPanel.add(msgDebounceInterval.set("Debounce interval (ms)", 20.f, 0.f, 400.f));
     
     // Kinect GUI options
     kinectGuiGroup.setup("Kinect");
@@ -32,15 +35,14 @@ void ofApp::setup()
     
     // Contour finder GUI options
     contourFinderGuiGroup.setup("Contour Finder");
-    contourFinderGuiGroup.add(minContourArea.set("Min area", 0.01f, 0, 100.f));
+    contourFinderGuiGroup.add(minContourArea.set("Min area", 0.01f, 0, 300.f));
     contourFinderGuiGroup.add(maxContourArea.set("Max area", 0.4f, 0, 300.f));
     contourFinderGuiGroup.add(persistence.set("Persistence", 15, 0, 1000));
     
-    player = {0, -1, -1};
+    player = {0, NUM_LANES/2, -1, -1};
     playerMovementGuiGroup.setup("Player Movement");
-    playerMovementGuiGroup.add(moveThreshold.set("Move threshold", 10, 0, 100));
-    playerMovementGuiGroup.add(jumpThreshold.set("Jump threshold", 10, 0, 300));
-    playerMovementGuiGroup.add(slideThreshold.set("Slide threshold", 10, 0, 300));
+    playerMovementGuiGroup.add(jumpThreshold.set("Jump threshold", -100, 0, 100));
+    playerMovementGuiGroup.add(slideThreshold.set("Slide threshold", -100, 0, 100));
     
     // Set up GUI panel groups
     guiPanel.add(&kinectGuiGroup);
@@ -111,7 +113,7 @@ void ofApp::updateOutlines() {
         ofDrawRectangle(boundingRect.x, boundingRect.y, boundingRect.width, boundingRect.height);
         
         idTrackingMap[label] = boundingRect;
-        if (sendObjectMsgs) {
+        if (sendObjectMsgs && isInDebounceInterval(lastTime)) {
             sendObjectMoveMsg(label, boundingRect, color);
         }
         presentIds.push_back(label);
@@ -136,51 +138,71 @@ void ofApp::update()
         updateOutlines();
         
         // 0th is player
-        if (sendPlayerMsgs && contourFinder.getBoundingRects().size() > 0) {
+        if (sendPlayerMsgs && contourFinder.getBoundingRects().size() > 0 && isInDebounceInterval(lastTime)) {
             cv::Rect blobRect;
             
             auto it = std::find(presentIds.begin(), presentIds.end(), player.label);
             if (it != presentIds.end()) {
+                ofxOscMessage msg;
                 cv::Rect blobRect = idTrackingMap[player.label];
-                int x = (blobRect.x + blobRect.width) / 2;
-                int y = (blobRect.x + blobRect.width) / 2;
                 
-                if (x < player.x - moveThreshold) {
-                    cout << "MOVE LEFT" << endl;
-                    // moveLeft
-                } else if (x > player.x + moveThreshold) {
-                    cout << "MOVE RIGHT" << endl;
-                    // moveRight
-                } else if (y < player.y - slideThreshold) {
-                    cout << "SLIDE!" << endl;
-                    // Jump
-                } else if (y > player.y + jumpThreshold) {
-                    cout << "JUMP!" << endl;
-                    // Slide
-                } else {
-                    cout << "--" << endl;
+                int x = blobRect.x + blobRect.width / 2;
+                int y = blobRect.x + blobRect.width / 2;
+                
+
+                int lane = findLaneNum(x);
+                
+                if (player.lane > lane) {
+                    msg.setAddress("/player/move");
+                    msg.addIntArg(-1);
+                    cout << "Sending /player/move -1" << endl;
+                } else if (player.lane < lane) {
+                    msg.setAddress("/player/move");
+                    msg.addIntArg(1);
+                    cout << "Sending /player/move 1" << endl;
                 }
                 
-                player.x = x;
-                player.y = y;
+                if (y < KINECT_DEPTH_HEIGHT / 3 + jumpThreshold && isInDebounceInterval(player.isJumpingMilliseconds)) {
+                    player.isJumpingMilliseconds = ofGetElapsedTimeMillis() * 2;
+                    msg.setAddress("/player/jump");
+                    cout << "Sending /player/jump" << endl;
+                } else {
+                    
+                }
+                
+                if (y > 2 * KINECT_DEPTH_HEIGHT / 3 + slideThreshold && isInDebounceInterval(player.isSlidingMilliseconds)) {
+                    player.isSlidingMilliseconds = ofGetElapsedTimeMillis() * 2;
+                    msg.setAddress("/player/slide");
+                    cout << "Sending /player/slide" << endl;
+                } else {
+                    
+//                    cout << "--" << endl;
+                }
+                
+                player.lane = lane;
+                
+                oscSender.sendMessage(msg);
             } else {
                 blobRect = contourFinder.getBoundingRect(0);
-                player.label = contourFinder.getLabel(0);
+                int x = blobRect.x + blobRect.width / 2;
+                int y = blobRect.y + blobRect.height / 2;
                 
-                player.x = (blobRect.x + blobRect.width) / 2;
-                player.y = (blobRect.y + blobRect.height) / 2;
+                player.label = contourFinder.getLabel(0);
+                player.lane = findLaneNum(x);
+                player.isJumpingMilliseconds = -1;
+                player.isSlidingMilliseconds = -1;
                 
                 cout << "Setting player to " << player.label << endl;
             }
-            
-            
         }
         
         
-        if (sendObjectMsgs) {
+        if (sendObjectMsgs && isInDebounceInterval(lastTime)) {
             pruneTrackingObjects();
         }
     }
+    
+    lastTime = ofGetElapsedTimeMillis();
 }
 
 void ofApp::draw()
@@ -218,6 +240,19 @@ void ofApp::pruneTrackingObjects() {
     for (int i = 0; i < idsToDelete.size(); i++) {
         idTrackingMap.erase(idsToDelete[i]);
     }
+}
+
+bool ofApp::isInDebounceInterval(int time) {
+    return ofGetElapsedTimeMillis() - time > msgDebounceInterval;
+}
+
+int ofApp::findLaneNum(int x) {
+    for (int i = 0; i < NUM_LANES; i++) {
+        if (x > LANE_WIDTH * i && x < LANE_WIDTH * (i + 1)) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 /**
