@@ -32,7 +32,7 @@
             "Show_Kinect_Depth_Map": "0"
         },
         "Player_Movement": {
-            "Jump_threshold": "11",
+            "Jump_threshold": "100",
             "Move_threshold": "3",
             "Slide_threshold": "45"
         },

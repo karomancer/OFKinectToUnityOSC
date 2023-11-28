@@ -147,7 +147,7 @@ void ofApp::update()
                 cv::Rect blobRect = idTrackingMap[player.label];
                 
                 int x = blobRect.x + blobRect.width / 2;
-                int y = blobRect.x + blobRect.width / 2;
+                int y = blobRect.y + blobRect.height / 2;
                 
 
                 int lane = findLaneNum(x);
