@@ -12,17 +12,28 @@ public:
     void update();
     void draw();
     
-    ofxKinectV2 kinect;    
-    ofTexture depthTex;
-    ofFbo canvasFbo;
-    
+    ofxKinectV2 kinect;
+    ofTexture irTex;    
+    ofFloatPixels irPixels;
+    ofTexture depthTex;    
     ofPixels depthPixels;
+    
+    ofRectangle drawBounds;
+    
+    ofFbo canvasFbo;
+    ofTexture canvasTexture;    
     
     ofParameter<float> minDepth;
     ofParameter<float> maxDepth;
+    ofParameter<float> minIR;
+    ofParameter<float> maxIR;
     ofParameter<float> anchorDepth;
+    ofParameter<int> millisToClear;
     
     ofParameter<bool> showDepthMap;
+    ofParameter<bool> showIRMap;
     
     ofxPanel guiPanel;
+    
+    int ellapsedMillisSinceClear;
 };

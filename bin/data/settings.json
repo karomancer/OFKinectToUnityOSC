@@ -1,8 +1,12 @@
 {
     "DEPTH_DOTS": {
-        "Base_pixel_size": "0.75",
-        "Max_depth": "1.325",
-        "Min_depth": "0.5",
-        "Show_Kinect_Depth_Map": "0"
+        "Base_pixel_size": "10",
+        "Max_IR_value": "1",
+        "Max_depth": "8",
+        "Min_IR_value": "0.995",
+        "Min_depth": "1.6625",
+        "Ms_to_clear": "5051",
+        "Show_Kinect_Depth_Map": "0",
+        "Show_Kinect_IR_Map": "0"
     }
 }
